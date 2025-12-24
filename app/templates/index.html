@@ -117,7 +117,7 @@
         }
         button {
             padding: 12px 20px;
-            background-color: #2b6cb0;
+            background-color: #3b82f6;
             color: #fff;
             border: none;
             border-radius: 8px;
@@ -128,7 +128,7 @@
             align-self: center;
         }
         button:hover {
-            background-color: #2c5282;
+            background-color: #2563eb;
         }
         .htmx-indicator {
             display: none;
@@ -210,7 +210,7 @@
         }
         .load-more-btn {
             padding: 6px 12px;
-            background-color: #2b6cb0;
+            background-color: #3b82f6;
             color: #fff;
             border: none;
             border-radius: 6px;
@@ -218,7 +218,273 @@
             cursor: pointer;
         }
         .load-more-btn:hover {
-            background-color: #2c5282;
+            background-color: #2563eb;
+        }
+
+        /* --- Shopping Cart Styling --- */
+        .card-add-button-container {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 10;
+        }
+        .card-add-button {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid #3b82f6;
+            color: #3b82f6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            padding: 0;
+        }
+        .card-add-button:hover {
+            background-color: #3b82f6;
+            color: white;
+            transform: scale(1.1);
+        }
+        .card-add-button.in-cart {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .card-add-button.in-cart:hover {
+            background-color: #2563eb;
+            border-color: #2563eb;
+        }
+        .card-add-button svg {
+            width: 14px;
+            height: 14px;
+        }
+        .foil-options-menu {
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-width: 120px;
+            z-index: 20;
+        }
+        .foil-options-menu button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            background-color: white;
+            border: none;
+            border-bottom: 1px solid #e2e8f0;
+            color: #333;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: left;
+            transition: background-color 0.2s;
+        }
+        .foil-options-menu button:last-child {
+            border-bottom: none;
+        }
+        .foil-options-menu button:hover {
+            background-color: #f0f2f5;
+        }
+        body.dark-mode .foil-options-menu {
+            background-color: #030712;
+            border-color: #1f2937;
+        }
+        body.dark-mode .foil-options-menu button {
+            background-color: #030712;
+            color: #e5e7eb;
+            border-color: #1f2937;
+        }
+        body.dark-mode .foil-options-menu button:hover {
+            background-color: #1f2937;
+        }
+
+        /* Shopping Cart Sidebar */
+        .cart-sidebar {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background-color: white;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+        .cart-sidebar.open {
+            right: 0;
+        }
+        .cart-pull-tab {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 120px;
+            background-color: #3b82f6;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: -2px 0 4px rgba(0, 0, 0, 0.2);
+            z-index: 999;
+            transition: background-color 0.2s;
+        }
+        .cart-pull-tab:hover {
+            background-color: #2563eb;
+        }
+        .cart-pull-tab svg {
+            width: 24px;
+            height: 24px;
+            color: white;
+        }
+        .cart-sidebar.open + .cart-pull-tab {
+            right: 400px;
+        }
+        .cart-header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cart-header h3 {
+            margin: 0;
+            color: #2a4365;
+        }
+        .cart-close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cart-close-btn:hover {
+            color: #2a4365;
+        }
+        .cart-items {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .cart-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .cart-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .cart-item img {
+            width: 60px;
+            height: auto;
+            border-radius: 4px;
+        }
+        .cart-item-info {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        .cart-item-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #2a4365;
+        }
+        .cart-item-details {
+            color: #718096;
+            font-size: 0.85rem;
+        }
+        .cart-item-remove {
+            background: none;
+            border: none;
+            color: #e53e3e;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cart-item-remove:hover {
+            color: #c53030;
+        }
+        .cart-footer {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .cart-export {
+            margin-bottom: 12px;
+        }
+        .cart-export textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+        .cart-copy-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .cart-copy-btn:hover {
+            background-color: #2563eb;
+        }
+        .cart-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #718096;
+        }
+        body.dark-mode .cart-sidebar {
+            background-color: #030712;
+            border-color: #1f2937;
+        }
+        body.dark-mode .cart-header,
+        body.dark-mode .cart-footer {
+            border-color: #1f2937;
+        }
+        body.dark-mode .cart-header h3 {
+            color: #e5e7eb;
+        }
+        body.dark-mode .cart-item {
+            border-color: #1f2937;
+        }
+        body.dark-mode .cart-item-name {
+            color: #e5e7eb;
+        }
+        body.dark-mode .cart-export textarea {
+            background-color: #030712;
+            color: #e5e7eb;
+            border-color: #1f2937;
         }
     </style>
 </head>
@@ -282,6 +548,28 @@
         </div>
 
     </main>
+
+    <!-- Shopping Cart Sidebar -->
+    <div class="cart-sidebar" id="cart-sidebar">
+        <div class="cart-header">
+            <h3>Shopping List</h3>
+            <button class="cart-close-btn" onclick="toggleCart()">×</button>
+        </div>
+        <div class="cart-items" id="cart-items">
+            <div class="cart-empty">Your shopping list is empty</div>
+        </div>
+        <div class="cart-footer">
+            <div class="cart-export">
+                <textarea id="cart-export-text" readonly placeholder="Moxfield importable list will appear here..."></textarea>
+            </div>
+            <button class="cart-copy-btn" onclick="copyCartToClipboard()">Copy to Clipboard</button>
+        </div>
+    </div>
+    <div class="cart-pull-tab" id="cart-pull-tab" onclick="toggleCart()">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V17C17 18.1 17.9 19 19 19C20.1 19 21 18.1 21 17V13M9 19.5C9.8 19.5 10.5 20.2 10.5 21C10.5 21.8 9.8 22.5 9 22.5C8.2 22.5 7.5 21.8 7.5 21C7.5 20.2 8.2 19.5 9 19.5ZM20 19.5C20.8 19.5 21.5 20.2 21.5 21C21.5 21.8 20.8 22.5 20 22.5C19.2 22.5 18.5 21.8 18.5 21C18.5 20.2 19.2 19.5 20 19.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
     <script>
         // Simple dark mode toggle using a body class and localStorage
         (function () {
@@ -329,6 +617,210 @@
             });
 
             btn.remove();
+        });
+
+        // Shopping Cart Functionality
+        let cart = JSON.parse(localStorage.getItem('blingmydeck-cart') || '[]');
+
+        function saveCart() {
+            localStorage.setItem('blingmydeck-cart', JSON.stringify(cart));
+            renderCart();
+        }
+
+        function showFoilOptions(button) {
+            // Close any other open menus
+            document.querySelectorAll('.foil-options-menu').forEach(menu => {
+                if (menu !== button.nextElementSibling) {
+                    menu.style.display = 'none';
+                }
+            });
+            
+            const menu = button.nextElementSibling;
+            if (!menu) return;
+            
+            const isOpen = menu.style.display === 'block';
+            menu.style.display = isOpen ? 'none' : 'block';
+            
+            // Close menu when clicking outside
+            if (!isOpen) {
+                setTimeout(() => {
+                    const closeMenu = function(e) {
+                        if (!button.contains(e.target) && !menu.contains(e.target)) {
+                            menu.style.display = 'none';
+                            document.removeEventListener('click', closeMenu);
+                        }
+                    };
+                    document.addEventListener('click', closeMenu);
+                }, 0);
+            }
+        }
+
+        function addToCart(button, foilType) {
+            const cardElement = button.closest('.card');
+            if (!cardElement) return;
+
+            const cardId = cardElement.getAttribute('data-card-id');
+            const cardName = cardElement.getAttribute('data-card-name');
+            const setCode = cardElement.getAttribute('data-set-code');
+            const collectorNumber = cardElement.getAttribute('data-collector-number');
+            const imageUri = cardElement.getAttribute('data-image-uri');
+
+            // Create unique key for this card printing + foil type
+            const cartKey = `${cardId}-${foilType}`;
+
+            // Check if already in cart
+            const existingIndex = cart.findIndex(item => item.key === cartKey);
+            if (existingIndex >= 0) {
+                cart[existingIndex].quantity += 1;
+            } else {
+                cart.push({
+                    key: cartKey,
+                    cardId: cardId,
+                    cardName: cardName,
+                    setCode: setCode,
+                    collectorNumber: collectorNumber,
+                    imageUri: imageUri,
+                    foilType: foilType,
+                    quantity: 1
+                });
+            }
+
+            // Close foil options menu if open
+            const menu = cardElement.querySelector('.foil-options-menu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+
+            saveCart();
+            updateCardButtonStates();
+        }
+
+        function removeFromCart(key) {
+            cart = cart.filter(item => item.key !== key);
+            saveCart();
+            updateCardButtonStates();
+        }
+
+        function updateCardButtonStates() {
+            // Get all card buttons
+            const allButtons = document.querySelectorAll('.card-add-button');
+            const cartKeys = new Set(cart.map(item => item.key));
+            
+            allButtons.forEach(button => {
+                const cardElement = button.closest('.card');
+                if (!cardElement) return;
+                
+                const cardId = cardElement.getAttribute('data-card-id');
+                const hasNonfoil = cardElement.getAttribute('data-has-nonfoil') === 'true';
+                const hasFoil = cardElement.getAttribute('data-has-foil') === 'true';
+                
+                // Check if any variant of this card is in the cart
+                let isInCart = false;
+                if (hasNonfoil && hasFoil) {
+                    // For cards with both options, check if either is in cart
+                    isInCart = cartKeys.has(`${cardId}-nonfoil`) || cartKeys.has(`${cardId}-foil`);
+                } else {
+                    // For single option cards, check the specific type
+                    const foilType = hasNonfoil ? 'nonfoil' : 'foil';
+                    isInCart = cartKeys.has(`${cardId}-${foilType}`);
+                }
+                
+                if (isInCart) {
+                    button.classList.add('in-cart');
+                } else {
+                    button.classList.remove('in-cart');
+                }
+            });
+        }
+
+        function renderCart() {
+            const cartItems = document.getElementById('cart-items');
+            const exportText = document.getElementById('cart-export-text');
+
+            if (cart.length === 0) {
+                cartItems.innerHTML = '<div class="cart-empty">Your shopping list is empty</div>';
+                exportText.value = '';
+                return;
+            }
+
+            cartItems.innerHTML = cart.map(item => `
+                <div class="cart-item">
+                    <img src="${item.imageUri}" alt="${item.cardName}">
+                    <div class="cart-item-info">
+                        <div class="cart-item-name">${item.cardName}</div>
+                        <div class="cart-item-details">
+                            ${item.setCode.toUpperCase()} #${item.collectorNumber}<br>
+                            ${item.foilType === 'foil' ? 'Foil' : 'Non-Foil'} × ${item.quantity}
+                        </div>
+                    </div>
+                    <button class="cart-item-remove" onclick="removeFromCart('${item.key}')" title="Remove">×</button>
+                </div>
+            `).join('');
+
+            // Generate Moxfield format
+            const moxfieldList = cart.map(item => {
+                const foilMarker = item.foilType === 'foil' ? ' *F*' : '';
+                return `${item.quantity} ${item.cardName} (${item.setCode.toUpperCase()}) ${item.collectorNumber}${foilMarker}`;
+            }).join('\n');
+            exportText.value = moxfieldList;
+        }
+
+        function toggleCart() {
+            const sidebar = document.getElementById('cart-sidebar');
+            const pullTab = document.getElementById('cart-pull-tab');
+            sidebar.classList.toggle('open');
+            if (sidebar.classList.contains('open')) {
+                pullTab.style.right = '400px';
+            } else {
+                pullTab.style.right = '0';
+            }
+        }
+
+        function copyCartToClipboard() {
+            const exportText = document.getElementById('cart-export-text');
+            if (!exportText.value) {
+                alert('Cart is empty!');
+                return;
+            }
+            
+            exportText.select();
+            exportText.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                const btn = document.querySelector('.cart-copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.style.backgroundColor = '#48bb78';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.backgroundColor = '#2b6cb0';
+                }, 2000);
+            } catch (err) {
+                // Fallback for modern browsers
+                navigator.clipboard.writeText(exportText.value).then(() => {
+                    const btn = document.querySelector('.cart-copy-btn');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.backgroundColor = '#48bb78';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.backgroundColor = '#2b6cb0';
+                    }, 2000);
+                }).catch(() => {
+                    alert('Failed to copy to clipboard');
+                });
+            }
+        }
+
+        // Initialize cart on page load
+        renderCart();
+        updateCardButtonStates();
+
+        // Re-render cart after HTMX swaps content (for dynamically loaded cards)
+        document.body.addEventListener('htmx:afterSwap', function() {
+            renderCart();
+            updateCardButtonStates();
         });
     </script>
 </body>
