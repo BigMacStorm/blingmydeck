@@ -2,6 +2,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        // Initialize PostHog with error handling to prevent blocking page functionality
+        // Create stub first to prevent errors
+        window.posthog = window.posthog || {
+            capture: function() {},
+            init: function() {},
+            identify: function() {},
+            reset: function() {}
+        };
+        
+        // Suppress PostHog network errors from showing in console (ad blockers)
+        const originalError = console.error;
+        console.error = function(...args) {
+            if (args.some(arg => typeof arg === 'string' && (arg.includes('posthog') || arg.includes('ERR_BLOCKED_BY_CLIENT')))) {
+                return; // Suppress PostHog-related errors
+            }
+            originalError.apply(console, args);
+        };
+        
+        // Try to initialize PostHog asynchronously
+        (function() {
+            try {
+                !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.onerror=function(){};p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init Xr es pi Zr rs Kr Qr capture Ni calculateEventProperties os register register_once register_for_session unregister unregister_for_session ds getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty us ns createPersonProfile hs Vr vs opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing ss debug O ls getPageViewId captureTraceFeedback captureTraceMetric qr".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+                if (window.posthog && window.posthog.init) {
+                    window.posthog.init('phc_H7IVdBRysGFlumQD3AJWZ7ertz7hueDDCfeoW0tPAhp', {
+                        api_host: 'https://us.i.posthog.com',
+                        defaults: '2025-11-30',
+                        person_profiles: 'identified_only',
+                        loaded: function() {
+                            // Restore console.error after successful load
+                            console.error = originalError;
+                        }
+                    });
+                }
+            } catch (e) {
+                // Silently fail - ad blocker is blocking PostHog
+            }
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bling My Deck - MTG Card Upgrade Finder</title>
@@ -133,11 +172,37 @@
         .htmx-indicator {
             display: none;
             text-align: center;
-            margin-top: 1rem;
+            margin-top: 2rem;
             font-size: 1.2rem;
         }
-        .htmx-request .htmx-indicator {
-            display: block;
+        .htmx-request .htmx-indicator,
+        body.htmx-request #loading-spinner,
+        form.htmx-request ~ #loading-spinner {
+            display: block !important;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        body.dark-mode .spinner {
+            border-color: #1f2937;
+            border-top-color: #3b82f6;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #718096;
+            font-size: 1rem;
+        }
+        body.dark-mode .loading-text {
+            color: #9ca3af;
         }
         .htmx-request button {
             cursor: not-allowed;
@@ -491,7 +556,7 @@
 <body>
     <main>
         <header>
-            <h1>💎 Bling My Deck</h1>
+            <h1>Bling My Deck</h1>
             <p>Paste your decklist below to find awesome alternate-art, extended-art, or special-frame versions of your cards. The app will show you all available printings, sorted by price.</p>
         </header>
 
@@ -540,7 +605,8 @@
         </form>
 
         <div id="loading-spinner" class="htmx-indicator">
-            <p>Analyzing... This may take a moment.</p>
+            <div class="spinner"></div>
+            <p class="loading-text">Analyzing decklist... This may take a moment.</p>
         </div>
 
         <div id="results-container">
@@ -691,6 +757,21 @@
                 menu.style.display = 'none';
             }
 
+            // Track PostHog event
+            if (window.posthog) {
+                const cardIdentifier = setCode ? `${cardName} ${setCode.toUpperCase()}${foilType === 'foil' ? ' F' : ''}` : cardName;
+                window.posthog.capture('Add to Cart', {
+                    card_name: cardName,
+                    set_code: setCode,
+                    collector_number: collectorNumber,
+                    foil_type: foilType,
+                    card_id: cardId,
+                    card_identifier: cardIdentifier,
+                    quantity: existingIndex >= 0 ? cart[existingIndex].quantity : 1,
+                    cart_size: cart.length
+                });
+            }
+
             saveCart();
             updateCardButtonStates();
         }
@@ -794,7 +875,7 @@
                 btn.style.backgroundColor = '#48bb78';
                 setTimeout(() => {
                     btn.textContent = originalText;
-                    btn.style.backgroundColor = '#2b6cb0';
+                    btn.style.backgroundColor = '#3b82f6';
                 }, 2000);
             } catch (err) {
                 // Fallback for modern browsers
@@ -805,10 +886,36 @@
                     btn.style.backgroundColor = '#48bb78';
                     setTimeout(() => {
                         btn.textContent = originalText;
-                        btn.style.backgroundColor = '#2b6cb0';
+                        btn.style.backgroundColor = '#3b82f6';
                     }, 2000);
                 }).catch(() => {
                     alert('Failed to copy to clipboard');
+                });
+            }
+
+            // Track PostHog event
+            if (window.posthog) {
+                window.posthog.capture('Copy Shopping List', {
+                    cart_size: cart.length,
+                    list_length: exportText.value.length,
+                    item_count: cart.reduce((sum, item) => sum + item.quantity, 0)
+                });
+            }
+        }
+
+        // Track Scryfall link clicks
+        function trackScryfallClick(link) {
+            if (window.posthog) {
+                const cardName = link.getAttribute('data-card-name');
+                const setCode = link.getAttribute('data-set-code');
+                const collectorNumber = link.getAttribute('data-collector-number');
+                const cardIdentifier = setCode ? `${cardName} ${setCode.toUpperCase()}` : cardName;
+                window.posthog.capture('View Scryfall', {
+                    card_name: cardName,
+                    set_code: setCode,
+                    collector_number: collectorNumber,
+                    card_identifier: cardIdentifier,
+                    scryfall_uri: link.href
                 });
             }
         }
@@ -817,10 +924,40 @@
         renderCart();
         updateCardButtonStates();
 
+        // Track Scryfall link clicks (delegated for HTMX-loaded content)
+        document.addEventListener('click', function(event) {
+            const link = event.target.closest('.scryfall-link');
+            if (link) {
+                trackScryfallClick(link);
+            }
+        });
+
         // Re-render cart after HTMX swaps content (for dynamically loaded cards)
         document.body.addEventListener('htmx:afterSwap', function() {
             renderCart();
             updateCardButtonStates();
+        });
+
+        // Show/hide loading spinner for HTMX requests
+        document.body.addEventListener('htmx:beforeRequest', function() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'block';
+            }
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
+        });
+
+        document.body.addEventListener('htmx:responseError', function() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.style.display = 'none';
+            }
         });
     </script>
 </body>

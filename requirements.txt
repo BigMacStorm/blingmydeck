@@ -18,5 +18,8 @@ python-multipart
 # Modern async HTTP client, used for Scryfall API fallback
 httpx
 
+# Analytics
+posthog
+
 # --- Development and Testing Dependencies ---
 pytest
