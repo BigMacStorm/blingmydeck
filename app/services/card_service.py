@@ -29,6 +29,42 @@ scryfall_client = httpx.AsyncClient(
     headers={"User-Agent": "BlingMyDeck/1.0 (Python/httpx)"}
 )
 
+
+def _derive_foil_type_from_scryfall(card: Dict[str, Any]) -> Optional[str]:
+    """
+    Derives a human‑readable foil finish string from a Scryfall card object.
+
+    Mirrors the logic used in the DB build script so that fallback lookups
+    behave consistently with locally stored data.
+    """
+    finishes = card.get("finishes") or []
+    promo_types = card.get("promo_types") or []
+
+    promo_map = {
+        "surgefoil": "Surgefoil",
+        "galaxyfoil": "Galaxy Foil",
+        "halofoil": "Halo Foil",
+        "foiletched": "Etched Foil",
+        "stepandcompleat": "Step-and-Compleat Foil",
+        "texturedfoil": "Textured Foil",
+        "rainbowfoil": "Rainbow Foil",
+    }
+    for p in promo_types:
+        if p in promo_map:
+            return promo_map[p]
+
+    if "etched" in finishes:
+        return "Etched Foil"
+    if "glossy" in finishes:
+        return "Glossy Foil"
+    if "textured" in finishes:
+        return "Textured Foil"
+
+    if "foil" in finishes:
+        return "Foil"
+
+    return None
+
 def _dict_factory(cursor: sqlite3.Cursor, row: sqlite3.Row) -> Dict:
     """Factory to return sqlite results as dictionaries."""
     fields = [column[0] for column in cursor.description]
@@ -112,6 +148,7 @@ async def find_card_printings_by_name(card_name: str, db_conn: sqlite3.Connectio
             # We only care about cards with a USD price for sorting
             prices = card.get("prices", {})
             if "image_uris" in card and "normal" in card["image_uris"]:
+                games = card.get("games") or []
                 normalized_cards.append({
                     "id": card.get("id"),
                     "name": card.get("name"),
@@ -121,6 +158,9 @@ async def find_card_printings_by_name(card_name: str, db_conn: sqlite3.Connectio
                     "scryfall_uri": card.get("scryfall_uri"),
                     "price_usd": float(prices.get("usd")) if prices.get("usd") else None,
                     "price_foil": float(prices.get("usd_foil")) if prices.get("usd_foil") else None,
+                    "foil_type": _derive_foil_type_from_scryfall(card),
+                    "released_at": card.get("released_at"),
+                    "is_paper": 1 if "paper" in games else 0,
                 })
         
         logger.info(f"Found {len(normalized_cards)} printings for '{card_name}' via Scryfall API.")

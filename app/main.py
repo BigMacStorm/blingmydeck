@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from typing import List, Optional
+from datetime import datetime
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, HTTPException
@@ -42,22 +43,53 @@ def shutdown_event():
     logging.info("Database connection closed.")
 
 
-# --- Helper Function for Sorting ---
-def get_sort_key(card: CardData):
-    """
-    Provides a key for sorting cards.
-    Sorts by foil price first, then non-foil price, both ascending.
-    None is treated as infinity (sorted last).
-    """
+def _price_value(card: CardData) -> float:
+    """Return the primary price used for sorting (foil preferred over non‑foil)."""
     foil_price = card.get("price_foil")
     usd_price = card.get("price_usd")
-    
-    # Python's `None` handling in tuples is what we want: (1, None) < (2, None)
-    # but we want None to be treated as a very high number.
-    key1 = float('inf') if foil_price is None else foil_price
-    key2 = float('inf') if usd_price is None else usd_price
-    
-    return key1, key2
+    if foil_price is not None:
+        return float(foil_price)
+    if usd_price is not None:
+        return float(usd_price)
+    # Very low sentinel so price-less cards go to the end when sorting desc
+    return -1.0
+
+
+def _release_date_value(card: CardData) -> datetime:
+    """Return a datetime for the card's release date, or a far past date if missing."""
+    date_str = card.get("released_at")
+    if isinstance(date_str, str):
+        try:
+            return datetime.fromisoformat(date_str)
+        except ValueError:
+            pass
+    # Use a stable minimal date for missing/invalid values
+    return datetime.min
+
+
+def sort_printings(printings: List[CardData], sort_order: str, only_paper: bool) -> List[CardData]:
+    """
+    Apply filtering (paper-only) and sorting to a list of card printings.
+
+    sort_order options:
+      - 'price_down' (default): most expensive → cheapest
+      - 'price_up': cheapest → most expensive
+      - 'release_down': newest → oldest
+      - 'release_up': oldest → newest
+    """
+    # Filter out non‑paper printings if requested. DB rows use 0/1, API fallback uses the same.
+    if only_paper:
+        printings = [p for p in printings if p.get("is_paper")]
+
+    if sort_order == "price_up":
+        return sorted(printings, key=_price_value)
+    if sort_order == "release_down":
+        return sorted(printings, key=_release_date_value, reverse=True)
+    if sort_order == "release_up":
+        return sorted(printings, key=_release_date_value)
+
+    # Default: price_down (more expensive first)
+    return sorted(printings, key=_price_value, reverse=True)
 
 
 # --- Routes ---
@@ -70,7 +102,12 @@ async def read_root(request: Request):
 
 
 @app.post("/analyze", response_class=HTMLResponse)
-async def analyze_decklist(request: Request, decklist: str = Form(...)):
+async def analyze_decklist(
+    request: Request,
+    decklist: str = Form(...),
+    sort_order: str = Form("price_down"),
+    only_paper: Optional[str] = Form(None),
+):
     """
     Processes a submitted decklist, finds alternate card printings,
     and returns an HTML fragment with the results, intended for HTMX swapping.
@@ -91,6 +128,9 @@ async def analyze_decklist(request: Request, decklist: str = Form(...)):
             status_code=400
         )
 
+    # Normalise form flags
+    paper_only_flag = only_paper is not None
+
     # Step 2: For each card, find all its printings
     results_data = []
     total_cards_requested = 0
@@ -108,8 +148,8 @@ async def analyze_decklist(request: Request, decklist: str = Form(...)):
             })
             continue
 
-        # Step 3: Sort the printings by price
-        all_printings.sort(key=get_sort_key)
+        # Step 3: Filter/sort the printings according to user settings
+        all_printings = sort_printings(all_printings, sort_order, paper_only_flag)
         
         # Step 4: Identify the user's specific printing (if provided)
         original_card_id = None

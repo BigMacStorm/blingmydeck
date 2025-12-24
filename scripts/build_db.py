@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
     image_uri_normal TEXT,
     scryfall_uri TEXT NOT NULL,
     price_usd REAL,
-    price_foil REAL
+    price_foil REAL,
+    foil_type TEXT,
+    released_at TEXT,
+    is_paper INTEGER
 );
 """
 CREATE_INDEX_SQL = f"CREATE INDEX IF NOT EXISTS idx_card_name_real_name ON {TABLE_NAME}(name COLLATE NOCASE, real_name COLLATE NOCASE);"
@@ -94,6 +97,45 @@ def create_database_and_tables(conn: sqlite3.Connection):
         logging.error(f"Database setup failed: {e}")
         raise
 
+def _derive_foil_type(card: dict) -> str | None:
+    """
+    Derives a human‑readable foil finish string from Scryfall data.
+
+    Examples: "Surgefoil", "Galaxy Foil", "Etched Foil", etc.
+    Falls back to plain "Foil" when only a regular foil is known.
+    """
+    finishes = card.get("finishes") or []
+    promo_types = card.get("promo_types") or []
+
+    # Promo‑based special foil types
+    promo_map = {
+        "surgefoil": "Surgefoil",
+        "galaxyfoil": "Galaxy Foil",
+        "halofoil": "Halo Foil",
+        "foiletched": "Etched Foil",
+        "stepandcompleat": "Step-and-Compleat Foil",
+        "texturedfoil": "Textured Foil",
+        "rainbowfoil": "Rainbow Foil",
+    }
+    for p in promo_types:
+        if p in promo_map:
+            return promo_map[p]
+
+    # Finish‑based descriptors
+    if "etched" in finishes:
+        return "Etched Foil"
+    if "glossy" in finishes:
+        return "Glossy Foil"
+    if "textured" in finishes:
+        return "Textured Foil"
+
+    # Plain foil present
+    if "foil" in finishes:
+        return "Foil"
+
+    return None
+
+
 def process_and_insert_data(conn: sqlite3.Connection):
     """
     Reads the JSON data, processes it, and inserts it into the SQLite database.
@@ -125,6 +167,10 @@ def process_and_insert_data(conn: sqlite3.Connection):
             prices = card.get("prices", {})
             usd_price = prices.get("usd")
             usd_foil_price = prices.get("usd_foil")
+            foil_type = _derive_foil_type(card)
+            released_at = card.get("released_at")
+            games = card.get("games") or []
+            is_paper = 1 if "paper" in games else 0
 
             card_name = unicodedata.normalize('NFC', card["name"])
 
@@ -150,6 +196,9 @@ def process_and_insert_data(conn: sqlite3.Connection):
                         card["scryfall_uri"],
                         float(usd_price) if usd_price else None,
                         float(usd_foil_price) if usd_foil_price else None,
+                        foil_type,
+                        released_at,
+                        is_paper,
                     ))
                 else:
                     # printed_name is the same as the main name, not a real alternate
@@ -163,6 +212,9 @@ def process_and_insert_data(conn: sqlite3.Connection):
                         card["scryfall_uri"],
                         float(usd_price) if usd_price else None,
                         float(usd_foil_price) if usd_foil_price else None,
+                        foil_type,
+                        released_at,
+                        is_paper,
                     ))
             else:
                  # Standard card with no alternate printed name
@@ -176,12 +228,15 @@ def process_and_insert_data(conn: sqlite3.Connection):
                     card["scryfall_uri"],
                     float(usd_price) if usd_price else None,
                     float(usd_foil_price) if usd_foil_price else None,
+                    foil_type,
+                    released_at,
+                    is_paper,
                 ))
 
         # Insert in batches to improve performance
         if len(batch) >= 1000:
             cursor.executemany(
-                f"INSERT OR IGNORE INTO {TABLE_NAME} (id, name, real_name, set_code, collector_number, image_uri_normal, scryfall_uri, price_usd, price_foil) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"INSERT OR IGNORE INTO {TABLE_NAME} (id, name, real_name, set_code, collector_number, image_uri_normal, scryfall_uri, price_usd, price_foil, foil_type, released_at, is_paper) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 batch
             )
             insert_count += len(batch)
@@ -190,7 +245,7 @@ def process_and_insert_data(conn: sqlite3.Connection):
     # Insert any remaining records
     if batch:
         cursor.executemany(
-            f"INSERT OR IGNORE INTO {TABLE_NAME} (id, name, real_name, set_code, collector_number, image_uri_normal, scryfall_uri, price_usd, price_foil) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT OR IGNORE INTO {TABLE_NAME} (id, name, real_name, set_code, collector_number, image_uri_normal, scryfall_uri, price_usd, price_foil, foil_type, released_at, is_paper) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             batch
         )
 

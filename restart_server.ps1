@@ -1,7 +1,6 @@
 
 param (
-    [switch]$KillOnly
-)
+    [switch]$kill)
 
 # This script restarts the BlingMyDeck web server.
 
@@ -17,7 +16,7 @@ if ($processId) {
     Write-Host "No running server found."
 }
 
-if (-not $KillOnly) {
+if (-not $kill) {
     # Add a small delay to ensure the port is fully released
     Start-Sleep -Seconds 1
 

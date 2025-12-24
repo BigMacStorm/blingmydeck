@@ -24,11 +24,11 @@
                     {{ card.set_code.upper() }}<br>
                     #{{ card.collector_number }}
                     {% if card.price_usd is not none and card.price_foil is not none %}
-                        <br>Nonfoil, Foil
+                        <br>Nonfoil, {{ card.foil_type or 'Foil' }}
                     {% elif card.price_usd is not none %}
                         <br>Nonfoil
                     {% elif card.price_foil is not none %}
-                        <br>Foil
+                        <br>{{ card.foil_type or 'Foil' }}
                     {% endif %}
                 </div>
                 <div class="prices">

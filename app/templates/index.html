@@ -26,6 +26,26 @@
             flex-direction: column;
             align-items: center;
         }
+        body.dark-mode {
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        body.dark-mode .settings-panel {
+            background-color: #030712;
+            border-color: #1f2937;
+        }
+        body.dark-mode textarea {
+            background-color: #030712;
+            color: #e5e7eb;
+            border-color: #1f2937;
+        }
+        body.dark-mode .card {
+            background-color: #030712;
+        }
+        body.dark-mode h1 {
+            color: #e5e7eb;
+        }
+
         main {
             width: 100%;
             max-width: 1200px;
@@ -45,6 +65,43 @@
             flex-direction: column;
             gap: 1rem;
             margin-bottom: 2rem;
+        }
+        .settings-panel {
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 0.75rem 1rem;
+            background-color: #ffffff;
+        }
+        .settings-panel summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #2a4365;
+        }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-top: 0.75rem;
+        }
+        .settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            font-size: 0.9rem;
+        }
+        .settings-field label {
+            font-weight: 600;
+        }
+        .settings-inline {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        select {
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9rem;
         }
         textarea {
             width: 100%;
@@ -179,9 +236,40 @@
             hx-target="#results-container" 
             hx-indicator="#loading-spinner"
             hx-swap="innerHTML">
-            
+
             <textarea name="decklist" placeholder="1 Sol Ring (C19) 259&#10;4 Counterspell&#10;..."></textarea>
-            
+
+            <details class="settings-panel">
+                <summary>Settings</summary>
+                <div class="settings-grid">
+                    <div class="settings-field">
+                        <label class="settings-inline">
+                            <input type="checkbox" id="darkmode-toggle">
+                            <span>Dark mode (local preference)</span>
+                        </label>
+                        <small>Uses your browser to remember this preference.</small>
+                    </div>
+
+                    <div class="settings-field">
+                        <label for="sort-order-select">Sort order</label>
+                        <select id="sort-order-select" name="sort_order">
+                            <option value="price_down">Price ↓ (expensive → cheap)</option>
+                            <option value="price_up">Price ↑ (cheap → expensive)</option>
+                            <option value="release_down">Release date ↓ (newest → oldest)</option>
+                            <option value="release_up">Release date ↑ (oldest → newest)</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-field">
+                        <label class="settings-inline">
+                            <input type="checkbox" name="only_paper" value="1">
+                            <span>Only show paper versions</span>
+                        </label>
+                        <small>Hides printings that are digital-only or not available in paper.</small>
+                    </div>
+                </div>
+            </details>
+
             <button type="submit">Analyze Deck</button>
         </form>
 
@@ -195,6 +283,33 @@
 
     </main>
     <script>
+        // Simple dark mode toggle using a body class and localStorage
+        (function () {
+            const body = document.body;
+            const toggle = document.getElementById('darkmode-toggle');
+            const DARK_KEY = 'blingmydeck-darkmode';
+
+            function applyDarkMode(enabled) {
+                if (enabled) {
+                    body.classList.add('dark-mode');
+                } else {
+                    body.classList.remove('dark-mode');
+                }
+            }
+
+            const stored = window.localStorage.getItem(DARK_KEY);
+            const enabled = stored === 'true';
+            applyDarkMode(enabled);
+            if (toggle) {
+                toggle.checked = enabled;
+                toggle.addEventListener('change', function () {
+                    const on = !!toggle.checked;
+                    window.localStorage.setItem(DARK_KEY, String(on));
+                    applyDarkMode(on);
+                });
+            }
+        })();
+
         // Delegate clicks on "Load more printings" buttons so it works for HTMX-loaded content
         document.addEventListener('click', function (event) {
             const btn = event.target.closest('.load-more-btn');
