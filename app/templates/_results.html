@@ -1,0 +1,36 @@
+
+{% for result in results %}
+<section class="card-grid">
+    <h2 class="grid-header">{{ result.original_card_info }}</h2>
+    
+    {% if result.error %}
+        <p class="error-message">{{ result.error }}</p>
+    {% elif result.printings %}
+        {% for card in result.printings %}
+            <div class="card-container">
+                <a href="{{ card.scryfall_uri }}" target="_blank" rel="noopener noreferrer">
+                    <img 
+                        src="{{ card.image_uri_normal }}" 
+                        alt="{{ card.name }} ({{ card.set_code }})" 
+                        loading="lazy"
+                        class="card-image {% if card.id == result.original_card_id %}original-card{% endif %}"
+                        title="{{ card.name }} - {{ card.set_code.upper() }} #{{ card.collector_number }}">
+                </a>
+                <div class="card-price">
+                    {% if card.price_usd is not none %}
+                        <span class="price-normal">${{ "%.2f"|format(card.price_usd) }}</span>
+                    {% endif %}
+                    {% if card.price_foil is not none %}
+                        <span class="price-foil">/ ${{ "%.2f"|format(card.price_foil) }} F</span>
+                    {% endif %}
+                    {% if card.price_usd is none and card.price_foil is none %}
+                        <span>Price N/A</span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+         <p class="error-message">No printings found for this card.</p>
+    {% endif %}
+</section>
+{% endfor %}

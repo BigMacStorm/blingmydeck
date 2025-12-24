@@ -1,0 +1,22 @@
+# Common dependencies for both builder and final stage
+# Used by build_db.py to fetch Scryfall data
+requests
+
+# --- Production Dependencies ---
+# The ASGI server
+uvicorn
+
+# The web framework
+fastapi
+
+# Server-side templating
+Jinja2
+
+# Required by FastAPI to handle form data (e.g., the decklist)
+python-multipart
+
+# Modern async HTTP client, used for Scryfall API fallback
+httpx
+
+# --- Development and Testing Dependencies ---
+pytest
