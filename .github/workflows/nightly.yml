@@ -3,6 +3,9 @@ name: Deploy to Cloud Run
 on:
   push:
     branches: [ "main" ]
+  schedule:
+    # Run nightly at 4:00 AM UTC
+    - cron: '0 4 * * *'
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
