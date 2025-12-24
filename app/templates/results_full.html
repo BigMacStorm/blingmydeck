@@ -1,16 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bling My Deck - MTG Card Upgrade Finder</title>
-    <meta name="description" content="Paste your Magic: The Gathering decklist to find cooler, alternate art, or special frame versions of your cards.">
-    
-    <!-- HTMX -->
+    <title>Bling My Deck - Results</title>
+
+    <!-- HTMX (not strictly needed here but kept for consistency) -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
-    <!-- Basic Styling -->
+
+    <!-- Reuse the same styling as index.html so direct /analyze looks identical -->
     <style>
         :root {
             --error-color: #ff6b6b;
@@ -40,56 +38,6 @@
             max-width: 60ch;
             margin: 1rem auto;
         }
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        textarea {
-            width: 100%;
-            height: 200px;
-            background-color: #ffffff;
-            color: #333;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 10px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 1rem;
-            resize: vertical;
-        }
-        button {
-            padding: 12px 20px;
-            background-color: #2b6cb0;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            align-self: center;
-        }
-        button:hover {
-            background-color: #2c5282;
-        }
-        .htmx-indicator {
-            display: none;
-            text-align: center;
-            margin-top: 1rem;
-            font-size: 1.2rem;
-        }
-        .htmx-request .htmx-indicator {
-            display: block;
-        }
-        .htmx-request button {
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-        #results-container {
-            margin-top: 2rem;
-        }
-
         /* --- Card Gallery Styling --- */
         h2 {
             color: #2a4365;
@@ -169,33 +117,13 @@
     <main>
         <header>
             <h1>💎 Bling My Deck</h1>
-            <p>Paste your decklist below to find awesome alternate-art, extended-art, or special-frame versions of your cards. The app will show you all available printings, sorted by price.</p>
+            <p>Decklist analysis results</p>
         </header>
 
-        <form 
-            method="post"
-            action="/analyze"
-            hx-post="/analyze" 
-            hx-target="#results-container" 
-            hx-indicator="#loading-spinner"
-            hx-swap="innerHTML">
-            
-            <textarea name="decklist" placeholder="1 Sol Ring (C19) 259&#10;4 Counterspell&#10;..."></textarea>
-            
-            <button type="submit">Analyze Deck</button>
-        </form>
-
-        <div id="loading-spinner" class="htmx-indicator">
-            <p>Analyzing... This may take a moment.</p>
-        </div>
-
-        <div id="results-container">
-            <!-- Results will be loaded here by HTMX -->
-        </div>
-
+        {% include "_results.html" %}
     </main>
     <script>
-        // Delegate clicks on "Load more printings" buttons so it works for HTMX-loaded content
+        // Same "load more printings" behavior as on the index page
         document.addEventListener('click', function (event) {
             const btn = event.target.closest('.load-more-btn');
             if (!btn) return;
@@ -218,3 +146,5 @@
     </script>
 </body>
 </html>
+
+

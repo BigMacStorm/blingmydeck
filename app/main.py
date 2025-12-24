@@ -1,5 +1,6 @@
 
 import logging
+import os
 import time
 from typing import List, Optional
 
@@ -134,10 +135,19 @@ async def analyze_decklist(request: Request, decklist: str = Form(...)):
     end_time = time.perf_counter()
     duration = (end_time - start_time) * 1000 # in ms
     time_per_card = duration / total_cards_requested if total_cards_requested else 0
-    logging.info(f"Analysis for decklist completed in {duration:.2f}ms. "
-                 f"Total cards requested: {total_cards_requested}. Time per card: {time_per_card:.2f}ms.")
+    logging.info(
+        f"Analysis for decklist completed in {duration:.2f}ms. "
+        f"Total cards requested: {total_cards_requested}. Time per card: {time_per_card:.2f}ms."
+    )
+
+    # If this is an HTMX request, return just the partial fragment to be swapped
+    # into the existing page. Otherwise, render a full page so direct navigation
+    # to /analyze still looks nicely formatted.
+    is_htmx = request.headers.get("HX-Request") == "true"
+    template_name = "_results.html" if is_htmx else "results_full.html"
+
     return templates.TemplateResponse(
-        "_results.html",
+        template_name,
         {"request": request, "results": results_data}
     )
 

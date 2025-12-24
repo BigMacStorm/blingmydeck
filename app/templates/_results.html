@@ -1,27 +1,51 @@
 
 {% for result in results %}
-<section class="card-grid">
-    <h2 class="grid-header">{{ result.original_card_info }}</h2>
-    
+{% set result_idx = loop.index0 %}
+<h2>{{ result.original_card_info }}</h2>
+<div class="card-gallery" id="card-gallery-{{ result_idx }}">
     {% if result.error %}
         <p class="error-message">{{ result.error }}</p>
     {% elif result.printings %}
         {% for card in result.printings %}
-            <div class="card-container">
+            {% set is_original = card.id == result.original_card_id %}
+            {% set is_extra = loop.index > 5 %}
+            <div class="card{% if is_original %} original{% endif %}{% if is_extra %} extra-card{% endif %}">
                 <a href="{{ card.scryfall_uri }}" target="_blank" rel="noopener noreferrer">
                     <img 
-                        src="{{ card.image_uri_normal }}" 
+                        {% if is_extra %}
+                        data-src="{{ card.image_uri_normal }}"
+                        {% else %}
+                        src="{{ card.image_uri_normal }}"
+                        {% endif %}
                         alt="{{ card.name }} ({{ card.set_code }})" 
-                        loading="lazy"
-                        class="card-image {% if card.id == result.original_card_id %}original-card{% endif %}"
-                        title="{{ card.name }} - {{ card.set_code.upper() }} #{{ card.collector_number }}">
+                        loading="lazy">
                 </a>
-                <div class="card-price">
-                    {% if card.price_usd is not none %}
-                        <span class="price-normal">${{ "%.2f"|format(card.price_usd) }}</span>
+                <div class="card-details">
+                    {{ card.set_code.upper() }}<br>
+                    #{{ card.collector_number }}
+                    {% if card.price_usd is not none and card.price_foil is not none %}
+                        <br>Nonfoil, Foil
+                    {% elif card.price_usd is not none %}
+                        <br>Nonfoil
+                    {% elif card.price_foil is not none %}
+                        <br>Foil
                     {% endif %}
-                    {% if card.price_foil is not none %}
-                        <span class="price-foil">/ ${{ "%.2f"|format(card.price_foil) }} F</span>
+                </div>
+                <div class="prices">
+                    {% if is_original %}
+                        {% if card.price_usd is not none %}
+                            <span><strong>Non-Foil: ${{ "%.2f"|format(card.price_usd) }}</strong></span>
+                        {% endif %}
+                        {% if card.price_foil is not none %}
+                            <span>{% if card.price_usd is none %}<strong>Foil: ${{ "%.2f"|format(card.price_foil) }}</strong>{% else %}Foil: ${{ "%.2f"|format(card.price_foil) }}{% endif %}</span>
+                        {% endif %}
+                    {% else %}
+                        {% if card.price_usd is not none %}
+                            <span>Non-Foil: ${{ "%.2f"|format(card.price_usd) }}</span>
+                        {% endif %}
+                        {% if card.price_foil is not none %}
+                            <span>Foil: ${{ "%.2f"|format(card.price_foil) }}</span>
+                        {% endif %}
                     {% endif %}
                     {% if card.price_usd is none and card.price_foil is none %}
                         <span>Price N/A</span>
@@ -29,8 +53,18 @@
                 </div>
             </div>
         {% endfor %}
+        {% if result.printings|length > 5 %}
+            <div class="load-more-container">
+                <button 
+                    type="button" 
+                    class="load-more-btn" 
+                    data-target-id="card-gallery-{{ result_idx }}">
+                    Load more printings
+                </button>
+            </div>
+        {% endif %}
     {% else %}
          <p class="error-message">No printings found for this card.</p>
     {% endif %}
-</section>
+</div>
 {% endfor %}
