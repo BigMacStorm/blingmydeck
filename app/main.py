@@ -8,7 +8,7 @@ from datetime import datetime
 
 import uvicorn
 from fastapi import FastAPI, Form, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import posthog
 
@@ -26,6 +26,18 @@ app = FastAPI(
 )
 templates = Jinja2Templates(directory="app/templates")
 logging.basicConfig(level=logging.INFO)
+
+
+@app.get("/favicon.png", include_in_schema=False)
+def favicon_png():
+    # Serve directly so we don't have to mount a static directory.
+    return FileResponse("static/favicon.png", media_type="image/png")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    # Some browsers still request /favicon.ico; serve the same PNG.
+    return FileResponse("static/favicon.png", media_type="image/png")
 
 # --- Database Connection ---
 # This is a global connection for the app instance.
@@ -169,6 +181,76 @@ def sort_printings(printings: List[CardData], sort_order: str, only_paper: bool)
     return sorted(printings, key=_price_value, reverse=True)
 
 
+def expand_printings_to_variants(printings: List[CardData], only_paper: bool) -> List[dict]:
+    """
+    Expand each DB printing into 1 or 2 UI variants:
+    - nonfoil variant when `price_usd` exists
+    - foil variant when `price_foil` exists
+    If neither price exists, we still emit a single 'nonfoil' variant with `variant_price=None`.
+    """
+    variants: List[dict] = []
+    for p in printings:
+        if only_paper and not p.get("is_paper"):
+            continue
+
+        price_usd = p.get("price_usd")
+        price_foil = p.get("price_foil")
+
+        nonfoil_included = price_usd is not None
+        foil_included = price_foil is not None
+
+        if not nonfoil_included and not foil_included:
+            variants.append(
+                {
+                    **p,
+                    "variant_type": "nonfoil",
+                    "variant_price": None,
+                }
+            )
+            continue
+
+        if nonfoil_included:
+            variants.append(
+                {
+                    **p,
+                    "variant_type": "nonfoil",
+                    "variant_price": price_usd,
+                }
+            )
+        if foil_included:
+            variants.append(
+                {
+                    **p,
+                    "variant_type": "foil",
+                    "variant_price": price_foil,
+                }
+            )
+
+    return variants
+
+
+def sort_variants(variants: List[dict], sort_order: str) -> List[dict]:
+    """Sort by variant price (price_*), otherwise by release date."""
+    if sort_order in ("price_down", "price_up"):
+        # Put None prices last regardless of direction.
+        def key(v: dict) -> float:
+            vp = v.get("variant_price")
+            if vp is None:
+                return float("-inf") if sort_order == "price_down" else float("inf")
+            return float(vp)
+
+        reverse = sort_order == "price_down"
+        return sorted(variants, key=key, reverse=reverse)
+
+    # Release sorting: variant_price doesn't matter (both variants share the same released_at).
+    # Reuse existing helper; it expects a CardData-like dict with `released_at`.
+    if sort_order == "release_down":
+        return sorted(variants, key=_release_date_value, reverse=True)
+    if sort_order == "release_up":
+        return sorted(variants, key=_release_date_value)
+    return sorted(variants, key=_release_date_value, reverse=True)
+
+
 # --- Routes ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -220,7 +302,7 @@ async def analyze_decklist(
     total_cards_requested = 0
     deck_request_id = uuid.uuid4().hex
     candidates_logged = 0
-    for quantity, name, set_code, coll_num in original_cards:
+    for quantity, name, set_code, coll_num, input_is_foil in original_cards:
         total_cards_requested += quantity
         input_set_code = set_code.upper() if set_code else None
         input_collector_number = coll_num
@@ -264,16 +346,18 @@ async def analyze_decklist(
 
             continue
 
-        # Step 3: Filter/sort the printings according to user settings
-        all_printings = sort_printings(all_printings, sort_order, paper_only_flag)
+        # Step 3: Expand to UI variants (foil/non-foil separate) and sort.
+        variants = expand_printings_to_variants(all_printings, paper_only_flag)
 
-        if not all_printings:
-            results_data.append({
-                "original_card_info": f"{quantity}x {name}",
-                "original_card_id": None,
-                "printings": [],
-                "error": "No printings matched the requested filters."
-            })
+        if not variants:
+            results_data.append(
+                {
+                    "original_card_info": f"{quantity}x {name}",
+                    "original_card_id": None,
+                    "printings": [],
+                    "error": "No printings matched the requested filters.",
+                }
+            )
 
             if posthog_client:
                 try:
@@ -298,26 +382,46 @@ async def analyze_decklist(
 
             continue
 
-        # Step 4: Identify the user's specific printing (if provided), otherwise fall back to the cheapest.
+        # Step 4: Sort variants and choose the reference variant to highlight.
+        sorted_variants = sort_variants(variants, sort_order)
+
         matched_input_printing_id = None
         if input_set_code and input_collector_number:
-            for p in all_printings:
-                # Case-insensitive comparison for set code
+            # Find a printing (card id) that matches set + collector in the filtered variants.
+            for v in variants:
                 if (
-                    p.get("set_code", "").lower() == input_set_code.lower()
-                    and p.get("collector_number") == input_collector_number
+                    v.get("set_code", "").lower() == input_set_code.lower()
+                    and v.get("collector_number") == input_collector_number
                 ):
-                    matched_input_printing_id = p.get("id")
+                    matched_input_printing_id = v.get("id")
                     break
 
-        reference_card_id = matched_input_printing_id or all_printings[0].get("id")
-        reference_index = next(
-            (i for i, p in enumerate(all_printings) if p.get("id") == reference_card_id),
-            None,
-        )
-        reference_printing = next((p for p in all_printings if p.get("id") == reference_card_id), None)
+        if matched_input_printing_id:
+            candidates = [v for v in sorted_variants if v.get("id") == matched_input_printing_id]
+            if candidates:
+                if input_is_foil is not None:
+                    wanted_variant_type = "foil" if input_is_foil else "nonfoil"
+                    ref = next(
+                        (vv for vv in candidates if vv.get("variant_type") == wanted_variant_type),
+                        None,
+                    )
+                    reference_variant = ref or candidates[0]
+                else:
+                    reference_variant = candidates[0]
+            else:
+                reference_variant = sorted_variants[0]
+        else:
+            reference_variant = sorted_variants[0]
 
-        has_foil = any(p.get("price_foil") is not None for p in all_printings)
+        reference_card_id = reference_variant.get("id")
+        reference_index = sorted_variants.index(reference_variant)
+        reference_price_usd = reference_variant.get("price_usd")
+        reference_price_foil = reference_variant.get("price_foil")
+
+        for v in sorted_variants:
+            v["is_reference"] = v is reference_variant
+
+        has_foil = any(v.get("variant_type") == "foil" for v in sorted_variants)
 
         if posthog_client:
             try:
@@ -339,10 +443,11 @@ async def analyze_decklist(
                         "matched_input_printing_id": matched_input_printing_id,
                         "reference_card_id": reference_card_id,
                         "reference_index": reference_index,
-                        "reference_set_code": reference_printing.get("set_code") if reference_printing else None,
-                        "reference_collector_number": reference_printing.get("collector_number") if reference_printing else None,
-                        "reference_price_usd": reference_printing.get("price_usd") if reference_printing else None,
-                        "reference_price_foil": reference_printing.get("price_foil") if reference_printing else None,
+                        "reference_set_code": reference_variant.get("set_code") if reference_variant else None,
+                        "reference_collector_number": reference_variant.get("collector_number") if reference_variant else None,
+                        "reference_price_usd": reference_price_usd,
+                        "reference_price_foil": reference_price_foil,
+                        "input_is_foil": input_is_foil,
                     },
                 )
 
@@ -384,7 +489,7 @@ async def analyze_decklist(
         results_data.append({
             "original_card_info": f"{quantity}x {name}",
             "original_card_id": reference_card_id,
-            "printings": all_printings,
+            "printings": sorted_variants,
             "error": None
         })
 

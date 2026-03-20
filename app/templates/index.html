@@ -45,6 +45,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bling My Deck - MTG Card Upgrade Finder</title>
     <meta name="description" content="Paste your Magic: The Gathering decklist to find cooler, alternate art, or special frame versions of your cards.">
+    <link rel="icon" type="image/png" href="/favicon.png">
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -237,6 +238,111 @@
         .card:hover {
             transform: scale(1.05);
         }
+        .card {
+            cursor: pointer;
+        }
+        .card.in-cart {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+        .card-qty-controls {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 30;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+        body.dark-mode .card-qty-controls {
+            background: rgba(3, 7, 18, 0.92);
+        }
+        .card.in-cart .card-qty-controls {
+            display: flex;
+        }
+        .qty-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid #3b82f6;
+            background: #ffffff;
+            color: #3b82f6;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        body.dark-mode .qty-btn {
+            background: #030712;
+            color: #93c5fd;
+            border-color: #3b82f6;
+        }
+        .qty-value {
+            min-width: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #1a202c;
+        }
+        body.dark-mode .qty-value {
+            color: #e5e7eb;
+        }
+        .card-name-row {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+            max-width: calc(100% - 80px);
+            pointer-events: auto;
+        }
+        .card-name-text {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #1a202c;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: right;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        }
+        body.dark-mode .card-name-text {
+            color: #e5e7eb;
+        }
+        .card-name-row .scryfall-link {
+            font-size: 0.75rem;
+            color: #3b82f6;
+            text-decoration: underline;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 2px 6px;
+            border-radius: 9999px;
+        }
+        body.dark-mode .card-name-row .scryfall-link {
+            background: rgba(3, 7, 18, 0.85);
+            color: #93c5fd;
+        }
+
+        .price-label {
+            color: #718096;
+        }
+        .price-link {
+            color: #2563eb; /* blue numbers */
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .price-link:hover {
+            text-decoration: underline;
+        }
         .card img {
             display: block;
             width: 100%;
@@ -250,7 +356,8 @@
             text-align: center;
             font-size: 0.8em;
             color: #718096;
-            height: 50px;
+            min-height: 50px;
+            height: auto;
         }
         .prices {
             padding: 5px;
@@ -755,15 +862,10 @@
                     imageUri: imageUri,
                     foilType: foilType,
                     quantity: 1,
+                    foilFinish: foilFinish,
                     priceNonfoilUsd: priceNonfoilUsd,
                     priceFoilUsd: priceFoilUsd
                 });
-            }
-
-            // Close foil options menu if open
-            const menu = cardElement.querySelector('.foil-options-menu');
-            if (menu) {
-                menu.style.display = 'none';
             }
 
             // Track PostHog event
@@ -776,7 +878,7 @@
                     foil_type: foilType,
                     card_id: cardId,
                     card_identifier: cardIdentifier,
-                    foil_finish: foilFinish,
+                    foil_finish: foilFinish || null,
                     price_nonfoil_usd: priceNonfoilUsd,
                     price_foil_usd: priceFoilUsd,
                     price_selected_usd: priceSelectedUsd,
@@ -785,6 +887,73 @@
                     cart_size: cart.length,
                     cart_item_key: cartKey
                 });
+            }
+
+            saveCart();
+            updateCardButtonStates();
+        }
+
+        function decrementCart(button, foilType) {
+            const cardElement = button.closest('.card');
+            if (!cardElement) return;
+
+            const cardId = cardElement.getAttribute('data-card-id');
+            const cardName = cardElement.getAttribute('data-card-name');
+            const setCode = cardElement.getAttribute('data-set-code');
+            const collectorNumber = cardElement.getAttribute('data-collector-number');
+
+            const priceNonfoilRaw = cardElement.getAttribute('data-price-nonfoil');
+            const priceFoilRaw = cardElement.getAttribute('data-price-foil');
+            const priceNonfoilUsd = priceNonfoilRaw && priceNonfoilRaw !== 'null' ? Number(priceNonfoilRaw) : null;
+            const priceFoilUsd = priceFoilRaw && priceFoilRaw !== 'null' ? Number(priceFoilRaw) : null;
+            const foilFinish = cardElement.getAttribute('data-foil-finish');
+
+            const cartKey = `${cardId}-${foilType}`;
+            const existingIndex = cart.findIndex(item => item.key === cartKey);
+            if (existingIndex < 0) return;
+
+            const quantityBefore = cart[existingIndex].quantity;
+
+            // If this was the last one, remove the item entirely.
+            if (quantityBefore <= 1) {
+                const removedItem = cart[existingIndex];
+                cart = cart.filter(item => item.key !== cartKey);
+
+                if (window.posthog && removedItem) {
+                    window.posthog.capture('Remove from Cart', {
+                        card_name: removedItem.cardName,
+                        set_code: removedItem.setCode,
+                        collector_number: removedItem.collectorNumber,
+                        foil_type: removedItem.foilType,
+                        card_id: removedItem.cardId,
+                        foil_finish: removedItem.foilFinish || null,
+                        price_nonfoil_usd: removedItem.priceNonfoilUsd,
+                        price_foil_usd: removedItem.priceFoilUsd,
+                        quantity_removed: quantityBefore,
+                        cart_size: cart.length,
+                        cart_item_key: removedItem.key
+                    });
+                }
+            } else {
+                cart[existingIndex].quantity -= 1;
+                const quantityAfter = cart[existingIndex].quantity;
+
+                if (window.posthog) {
+                    window.posthog.capture('Update Cart Quantity', {
+                        card_name: cardName,
+                        set_code: setCode,
+                        collector_number: collectorNumber,
+                        foil_type: foilType,
+                        card_id: cardId,
+                        foil_finish: foilFinish || null,
+                        price_nonfoil_usd: priceNonfoilUsd,
+                        price_foil_usd: priceFoilUsd,
+                        quantity_before: quantityBefore,
+                        quantity_after: quantityAfter,
+                        cart_size: cart.length,
+                        cart_item_key: cartKey
+                    });
+                }
             }
 
             saveCart();
@@ -802,7 +971,7 @@
                     collector_number: removedItem.collectorNumber,
                     foil_type: removedItem.foilType,
                     card_id: removedItem.cardId,
-                    foil_finish: null,
+                    foil_finish: removedItem.foilFinish || null,
                     price_nonfoil_usd: removedItem.priceNonfoilUsd,
                     price_foil_usd: removedItem.priceFoilUsd,
                     quantity_removed: removedItem.quantity,
@@ -815,33 +984,20 @@
         }
 
         function updateCardButtonStates() {
-            // Get all card buttons
-            const allButtons = document.querySelectorAll('.card-add-button');
-            const cartKeys = new Set(cart.map(item => item.key));
-            
-            allButtons.forEach(button => {
-                const cardElement = button.closest('.card');
-                if (!cardElement) return;
-                
-                const cardId = cardElement.getAttribute('data-card-id');
-                const hasNonfoil = cardElement.getAttribute('data-has-nonfoil') === 'true';
-                const hasFoil = cardElement.getAttribute('data-has-foil') === 'true';
-                
-                // Check if any variant of this card is in the cart
-                let isInCart = false;
-                if (hasNonfoil && hasFoil) {
-                    // For cards with both options, check if either is in cart
-                    isInCart = cartKeys.has(`${cardId}-nonfoil`) || cartKeys.has(`${cardId}-foil`);
+            // Sync displayed quantity controls with cart state.
+            const allCards = document.querySelectorAll('.card[data-cart-item-key]');
+            allCards.forEach(cardElement => {
+                const cartKey = cardElement.getAttribute('data-cart-item-key');
+                const item = cart.find(it => it.key === cartKey);
+                const qty = item ? item.quantity : 0;
+
+                const qtySpan = cardElement.querySelector('.qty-value');
+                if (qtySpan) qtySpan.textContent = qty > 0 ? qty : '';
+
+                if (qty > 0) {
+                    cardElement.classList.add('in-cart');
                 } else {
-                    // For single option cards, check the specific type
-                    const foilType = hasNonfoil ? 'nonfoil' : 'foil';
-                    isInCart = cartKeys.has(`${cardId}-${foilType}`);
-                }
-                
-                if (isInCart) {
-                    button.classList.add('in-cart');
-                } else {
-                    button.classList.remove('in-cart');
+                    cardElement.classList.remove('in-cart');
                 }
             });
         }
