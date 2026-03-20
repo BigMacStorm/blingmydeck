@@ -730,12 +730,19 @@
             const setCode = cardElement.getAttribute('data-set-code');
             const collectorNumber = cardElement.getAttribute('data-collector-number');
             const imageUri = cardElement.getAttribute('data-image-uri');
+            const priceNonfoilRaw = cardElement.getAttribute('data-price-nonfoil');
+            const priceFoilRaw = cardElement.getAttribute('data-price-foil');
+            const priceNonfoilUsd = priceNonfoilRaw && priceNonfoilRaw !== 'null' ? Number(priceNonfoilRaw) : null;
+            const priceFoilUsd = priceFoilRaw && priceFoilRaw !== 'null' ? Number(priceFoilRaw) : null;
+            const priceSelectedUsd = foilType === 'foil' ? priceFoilUsd : priceNonfoilUsd;
+            const foilFinish = cardElement.getAttribute('data-foil-finish');
 
             // Create unique key for this card printing + foil type
             const cartKey = `${cardId}-${foilType}`;
 
             // Check if already in cart
             const existingIndex = cart.findIndex(item => item.key === cartKey);
+            const quantityBefore = existingIndex >= 0 ? cart[existingIndex].quantity : 0;
             if (existingIndex >= 0) {
                 cart[existingIndex].quantity += 1;
             } else {
@@ -747,7 +754,9 @@
                     collectorNumber: collectorNumber,
                     imageUri: imageUri,
                     foilType: foilType,
-                    quantity: 1
+                    quantity: 1,
+                    priceNonfoilUsd: priceNonfoilUsd,
+                    priceFoilUsd: priceFoilUsd
                 });
             }
 
@@ -767,8 +776,14 @@
                     foil_type: foilType,
                     card_id: cardId,
                     card_identifier: cardIdentifier,
-                    quantity: existingIndex >= 0 ? cart[existingIndex].quantity : 1,
-                    cart_size: cart.length
+                    foil_finish: foilFinish,
+                    price_nonfoil_usd: priceNonfoilUsd,
+                    price_foil_usd: priceFoilUsd,
+                    price_selected_usd: priceSelectedUsd,
+                    quantity_before: quantityBefore,
+                    quantity_after: existingIndex >= 0 ? cart[existingIndex].quantity : 1,
+                    cart_size: cart.length,
+                    cart_item_key: cartKey
                 });
             }
 
@@ -777,7 +792,24 @@
         }
 
         function removeFromCart(key) {
+            const removedItem = cart.find(item => item.key === key);
             cart = cart.filter(item => item.key !== key);
+            
+            if (window.posthog && removedItem) {
+                window.posthog.capture('Remove from Cart', {
+                    card_name: removedItem.cardName,
+                    set_code: removedItem.setCode,
+                    collector_number: removedItem.collectorNumber,
+                    foil_type: removedItem.foilType,
+                    card_id: removedItem.cardId,
+                    foil_finish: null,
+                    price_nonfoil_usd: removedItem.priceNonfoilUsd,
+                    price_foil_usd: removedItem.priceFoilUsd,
+                    quantity_removed: removedItem.quantity,
+                    cart_size: cart.length,
+                    cart_item_key: removedItem.key
+                });
+            }
             saveCart();
             updateCardButtonStates();
         }
@@ -895,10 +927,26 @@
 
             // Track PostHog event
             if (window.posthog) {
+                const cartItems = cart.map(item => ({
+                    card_id: item.cardId,
+                    set_code: item.setCode ? item.setCode.toUpperCase() : null,
+                    collector_number: item.collectorNumber,
+                    foil_type: item.foilType,
+                    quantity: item.quantity,
+                    price_nonfoil_usd: item.priceNonfoilUsd,
+                    price_foil_usd: item.priceFoilUsd
+                }));
+                const cartItemsTruncated = cartItems.length > 50;
+                const cartItemsForEvent = cartItems.slice(0, 50);
+                const cartPrintingKeys = cart.map(item => item.key).join(',');
+
                 window.posthog.capture('Copy Shopping List', {
                     cart_size: cart.length,
                     list_length: exportText.value.length,
-                    item_count: cart.reduce((sum, item) => sum + item.quantity, 0)
+                    item_count: cart.reduce((sum, item) => sum + item.quantity, 0),
+                    cart_printing_keys: cartPrintingKeys,
+                    cart_items_truncated: cartItemsTruncated,
+                    cart_items_json: JSON.stringify(cartItemsForEvent)
                 });
             }
         }

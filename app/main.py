@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+import uuid
 from typing import List, Optional
 from datetime import datetime
 
@@ -49,6 +50,18 @@ try:
 except Exception as e:
     logging.error(f"Failed to initialize PostHog client: {e}")
     posthog_client = None
+
+# Limit how many candidate-printing events we emit per card input.
+# These controls reduce PostHog egress for large or "printing-heavy" cards.
+POSTHOG_CANDIDATES_MAX_PER_LOOKUP = int(os.environ.get("POSTHOG_CANDIDATES_MAX_PER_LOOKUP", "10"))
+POSTHOG_CANDIDATES_MAX_TOTAL_PER_REQUEST = int(
+    os.environ.get("POSTHOG_CANDIDATES_MAX_TOTAL_PER_REQUEST", "200")
+)
+
+POSTHOG_EVENT_DECK_CARD_LOOKUP = "deck_card_lookup"
+POSTHOG_EVENT_DECK_CARD_CANDIDATE = "deck_card_candidate"
+POSTHOG_EVENT_DECK_CARD_LOOKUP_MISS = "deck_card_lookup_miss"
+POSTHOG_EVENT_DECK_CARD_LOOKUP_FILTERED_EMPTY = "deck_card_lookup_filtered_empty"
 
 
 def get_distinct_id(request: Request) -> str:
@@ -205,50 +218,20 @@ async def analyze_decklist(
     # Step 2: For each card, find all its printings
     results_data = []
     total_cards_requested = 0
+    deck_request_id = uuid.uuid4().hex
+    candidates_logged = 0
     for quantity, name, set_code, coll_num in original_cards:
         total_cards_requested += quantity
+        input_set_code = set_code.upper() if set_code else None
+        input_collector_number = coll_num
+
         all_printings = await find_card_printings_by_name(name, db_connection)
-        
-        # Send PostHog event for card lookup (object-verb format)
-        # Format: "{Card Name} {Set} {F}" "Lookup"
-        card_identifier = name
-        if set_code:
-            card_identifier = f"{name} {set_code.upper()}"
-        if coll_num:
-            card_identifier = f"{card_identifier} {coll_num}"
-        
-        # Determine if foil (F) should be included - check if original card had foil
-        # For now, we'll include it if the card has foil pricing available
-        has_foil = False
+        resolved_real_name = None
         if all_printings:
-            for p in all_printings:
-                if p.get("price_foil") is not None:
-                    has_foil = True
-                    break
-        
-        event_name = f"{card_identifier}{' F' if has_foil else ''} Lookup"
-        
-        # Send PostHog event asynchronously to avoid blocking the request
-        if posthog_client:
-            try:
-                posthog_client.capture(
-                distinct_id=distinct_id,
-                event=event_name,
-                properties={
-                    "card_name": name,
-                    "set_code": set_code.upper() if set_code else None,
-                    "collector_number": coll_num,
-                    "quantity": quantity,
-                    "printings_found": len(all_printings) if all_printings else 0,
-                    "sort_order": sort_order,
-                    "paper_only": paper_only_flag,
-                    "has_foil": has_foil,
-                }
-            )
-                # Don't flush immediately - let flush_interval handle it to avoid blocking
-            except Exception as e:
-                logging.error(f"Error sending PostHog event: {e}")
-        
+            resolved_real_name = all_printings[0].get("real_name") or all_printings[0].get("name") or name
+        else:
+            resolved_real_name = name
+
         if not all_printings:
             # Add a placeholder for cards that couldn't be found
             results_data.append({
@@ -257,27 +240,150 @@ async def analyze_decklist(
                 "printings": [],
                 "error": f"Could not find any printings for '{name}'. It might be a new or unofficial card."
             })
+
+            if posthog_client:
+                try:
+                    posthog_client.capture(
+                        distinct_id=distinct_id,
+                        event=POSTHOG_EVENT_DECK_CARD_LOOKUP_MISS,
+                        properties={
+                            "deck_request_id": deck_request_id,
+                            "input_card_name": name,
+                            "input_set_code": input_set_code,
+                            "input_collector_number": input_collector_number,
+                            "input_is_fully_specified": bool(input_set_code and input_collector_number),
+                            "resolved_real_name": resolved_real_name,
+                            "quantity": quantity,
+                            "sort_order": sort_order,
+                            "paper_only": paper_only_flag,
+                            "printings_found": 0,
+                        },
+                    )
+                except Exception as e:
+                    logging.error(f"Error sending PostHog miss event: {e}")
+
             continue
 
         # Step 3: Filter/sort the printings according to user settings
         all_printings = sort_printings(all_printings, sort_order, paper_only_flag)
-        
-        # Step 4: Identify the user's specific printing (if provided)
-        original_card_id = None
-        if set_code and coll_num:
+
+        if not all_printings:
+            results_data.append({
+                "original_card_info": f"{quantity}x {name}",
+                "original_card_id": None,
+                "printings": [],
+                "error": "No printings matched the requested filters."
+            })
+
+            if posthog_client:
+                try:
+                    posthog_client.capture(
+                        distinct_id=distinct_id,
+                        event=POSTHOG_EVENT_DECK_CARD_LOOKUP_FILTERED_EMPTY,
+                        properties={
+                            "deck_request_id": deck_request_id,
+                            "input_card_name": name,
+                            "input_set_code": input_set_code,
+                            "input_collector_number": input_collector_number,
+                            "input_is_fully_specified": bool(input_set_code and input_collector_number),
+                            "resolved_real_name": resolved_real_name,
+                            "quantity": quantity,
+                            "sort_order": sort_order,
+                            "paper_only": paper_only_flag,
+                            "printings_found": 0,
+                        },
+                    )
+                except Exception as e:
+                    logging.error(f"Error sending PostHog filtered-empty event: {e}")
+
+            continue
+
+        # Step 4: Identify the user's specific printing (if provided), otherwise fall back to the cheapest.
+        matched_input_printing_id = None
+        if input_set_code and input_collector_number:
             for p in all_printings:
                 # Case-insensitive comparison for set code
-                if p.get("set_code", "").lower() == set_code.lower() and p.get("collector_number") == coll_num:
-                    original_card_id = p.get("id")
+                if (
+                    p.get("set_code", "").lower() == input_set_code.lower()
+                    and p.get("collector_number") == input_collector_number
+                ):
+                    matched_input_printing_id = p.get("id")
                     break
-        
-        # If the specific version wasn't found, fall back to the cheapest as the reference
-        if not original_card_id:
-            original_card_id = all_printings[0].get("id") if all_printings else None
+
+        reference_card_id = matched_input_printing_id or all_printings[0].get("id")
+        reference_index = next(
+            (i for i, p in enumerate(all_printings) if p.get("id") == reference_card_id),
+            None,
+        )
+        reference_printing = next((p for p in all_printings if p.get("id") == reference_card_id), None)
+
+        has_foil = any(p.get("price_foil") is not None for p in all_printings)
+
+        if posthog_client:
+            try:
+                posthog_client.capture(
+                    distinct_id=distinct_id,
+                    event=POSTHOG_EVENT_DECK_CARD_LOOKUP,
+                    properties={
+                        "deck_request_id": deck_request_id,
+                        "input_card_name": name,
+                        "input_set_code": input_set_code,
+                        "input_collector_number": input_collector_number,
+                        "input_is_fully_specified": bool(input_set_code and input_collector_number),
+                        "resolved_real_name": resolved_real_name,
+                        "quantity": quantity,
+                        "sort_order": sort_order,
+                        "paper_only": paper_only_flag,
+                        "printings_found": len(all_printings),
+                        "has_foil": has_foil,
+                        "matched_input_printing_id": matched_input_printing_id,
+                        "reference_card_id": reference_card_id,
+                        "reference_index": reference_index,
+                        "reference_set_code": reference_printing.get("set_code") if reference_printing else None,
+                        "reference_collector_number": reference_printing.get("collector_number") if reference_printing else None,
+                        "reference_price_usd": reference_printing.get("price_usd") if reference_printing else None,
+                        "reference_price_foil": reference_printing.get("price_foil") if reference_printing else None,
+                    },
+                )
+
+                # Emit bounded per-printing candidate events for SQL-friendly analysis.
+                remaining = POSTHOG_CANDIDATES_MAX_TOTAL_PER_REQUEST - candidates_logged
+                if remaining > 0:
+                    max_for_this_lookup = min(POSTHOG_CANDIDATES_MAX_PER_LOOKUP, remaining)
+                    for candidate_index, p in enumerate(all_printings[:max_for_this_lookup]):
+                        posthog_client.capture(
+                            distinct_id=distinct_id,
+                            event=POSTHOG_EVENT_DECK_CARD_CANDIDATE,
+                            properties={
+                                "deck_request_id": deck_request_id,
+                                "input_card_name": name,
+                                "input_set_code": input_set_code,
+                                "input_collector_number": input_collector_number,
+                                "resolved_real_name": resolved_real_name,
+                                "quantity": quantity,
+                                "sort_order": sort_order,
+                                "paper_only": paper_only_flag,
+                                "candidate_index": candidate_index,
+                                "candidate_card_id": p.get("id"),
+                                "candidate_set_code": p.get("set_code"),
+                                "candidate_collector_number": p.get("collector_number"),
+                                "candidate_is_reference": p.get("id") == reference_card_id,
+                                "candidate_is_input_match": p.get("id") == matched_input_printing_id,
+                                "candidate_price_usd": p.get("price_usd"),
+                                "candidate_price_foil": p.get("price_foil"),
+                                "candidate_foil_type": p.get("foil_type"),
+                                "candidate_available_nonfoil": p.get("price_usd") is not None,
+                                "candidate_available_foil": p.get("price_foil") is not None,
+                                "candidate_is_paper": p.get("is_paper"),
+                            },
+                        )
+                    candidates_logged += max_for_this_lookup
+            except Exception as e:
+                logging.error(f"Error sending PostHog lookup/candidate events: {e}")
 
         results_data.append({
             "original_card_info": f"{quantity}x {name}",
-            "original_card_id": original_card_id,
+            "original_card_id": reference_card_id,
             "printings": all_printings,
             "error": None
         })

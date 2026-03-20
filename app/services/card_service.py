@@ -152,6 +152,9 @@ async def find_card_printings_by_name(card_name: str, db_conn: sqlite3.Connectio
                 normalized_cards.append({
                     "id": card.get("id"),
                     "name": card.get("name"),
+                    # Keep our DB's grouping key stable even for fallback lookups.
+                    # In the local DB this is stored in `real_name`.
+                    "real_name": canonical_name,
                     "set_code": card.get("set"),
                     "collector_number": card.get("collector_number"),
                     "image_uri_normal": card["image_uris"]["normal"],
