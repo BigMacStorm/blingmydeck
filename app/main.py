@@ -257,7 +257,8 @@ async def read_root(request: Request):
     """
     Serves the main page with the decklist input form.
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    # Starlette 0.50+: first arg must be Request (not template name).
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.post("/analyze", response_class=HTMLResponse)
@@ -504,8 +505,9 @@ async def analyze_decklist(
 
     # Always return the partial fragment for HTMX swapping
     return templates.TemplateResponse(
+        request,
         "_results.html",
-        {"request": request, "results": results_data}
+        {"results": results_data},
     )
 
 
